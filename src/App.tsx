@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   crowdSwell,
   isAudioEnabled,
+  preloadMusic,
   primeAudio,
   setAudioEnabled,
   setMusicDucked,
@@ -29,6 +30,13 @@ export default function App() {
   const [cpuId, setCpuId] = useState<string | null>(null);
   const [matchKey, setMatchKey] = useState(0);
   const [sound, setSound] = useState(true);
+
+  /* Start fetching/decoding the menu theme as soon as the app mounts, well
+   * before the first team pick actually needs it, so playback can start
+   * without a load stall. */
+  useEffect(() => {
+    preloadMusic();
+  }, []);
 
   /* Hover sounds (and anything else that plays before a team is picked)
    * need the AudioContext armed first, which browsers only allow inside a

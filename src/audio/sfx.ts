@@ -125,6 +125,19 @@ function loadMusicBuffer(c: AudioContext): Promise<AudioBuffer | null> {
 }
 
 /**
+ * Kicks off fetching + decoding the menu theme immediately, without waiting
+ * for a user gesture. Browsers only gate *playback* behind a gesture —
+ * constructing an AudioContext and decoding data into a buffer both work
+ * fine ahead of time — so calling this on app mount means the buffer is
+ * usually already warm by the time `startMusic()` actually needs it.
+ */
+export function preloadMusic() {
+  const c = audio();
+  if (!c) return;
+  void loadMusicBuffer(c);
+}
+
+/**
  * Queues one pass through the theme starting at `startAt` (an AudioContext
  * timestamp), then schedules the next overlapping pass so its head crossfades
  * under this one's tail — avoiding the click/pop of a hard-cut native loop.
