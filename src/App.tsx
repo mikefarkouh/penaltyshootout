@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   crowdSwell,
   isAudioEnabled,
+  primeAudio,
   setAudioEnabled,
   setMusicDucked,
   sfxKick,
@@ -28,6 +29,24 @@ export default function App() {
   const [cpuId, setCpuId] = useState<string | null>(null);
   const [matchKey, setMatchKey] = useState(0);
   const [sound, setSound] = useState(true);
+
+  /* Hover sounds (and anything else that plays before a team is picked)
+   * need the AudioContext armed first, which browsers only allow inside a
+   * real user gesture. Arm it on the very first click/tap/keypress anywhere
+   * on the page, rather than waiting for a specific handler to do it. */
+  useEffect(() => {
+    const unlock = () => {
+      primeAudio();
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   const toggleSound = useCallback(() => {
     setSound((on) => {

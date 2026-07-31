@@ -54,6 +54,16 @@ function noiseBuffer(c: AudioContext, seconds: number) {
   return buffer;
 }
 
+/**
+ * Creates and (attempts to) resume the shared AudioContext. Browsers only
+ * allow this from within a genuine user gesture (click/tap/keypress) — a
+ * hover never qualifies — so call this from the very first such gesture
+ * anywhere on the page to arm audio as early as possible.
+ */
+export function primeAudio() {
+  audio();
+}
+
 export function setAudioEnabled(on: boolean) {
   enabled = on;
   if (master) master.gain.value = on ? MASTER_VOLUME : 0;

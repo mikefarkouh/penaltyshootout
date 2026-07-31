@@ -85,7 +85,6 @@ export function TeamSelect({ onSelect }: Props) {
                   sfxWhistle();
                   onSelect(id);
                 }}
-                onMouseEnter={() => sfxClick(0.1)}
               >
                 <div className="team-card__glow" aria-hidden />
                 <Flag code={team.code} width={84} className="team-card__flag" />
