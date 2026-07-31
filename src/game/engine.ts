@@ -29,12 +29,12 @@ type ZoneMeta = {
 };
 
 export const ZONES: Record<ZoneId, ZoneMeta> = {
-  TL: { row: 0, col: 0, label: "Top left", missBase: 0.115, saveBase: 0.3, aimWeight: 1.5, diveWeight: 0.95 },
-  TC: { row: 0, col: 1, label: "Over the keeper", missBase: 0.135, saveBase: 0.44, aimWeight: 0.5, diveWeight: 0.5 },
-  TR: { row: 0, col: 2, label: "Top right", missBase: 0.115, saveBase: 0.3, aimWeight: 1.5, diveWeight: 0.95 },
-  BL: { row: 1, col: 0, label: "Bottom left", missBase: 0.028, saveBase: 0.58, aimWeight: 1.45, diveWeight: 1.5 },
-  BC: { row: 1, col: 1, label: "Low and central", missBase: 0.022, saveBase: 0.82, aimWeight: 0.4, diveWeight: 0.8 },
-  BR: { row: 1, col: 2, label: "Bottom right", missBase: 0.028, saveBase: 0.58, aimWeight: 1.45, diveWeight: 1.5 },
+  TL: { row: 0, col: 0, label: "Top left", missBase: 0.115, saveBase: 0.52, aimWeight: 1.5, diveWeight: 0.95 },
+  TC: { row: 0, col: 1, label: "Over the keeper", missBase: 0.135, saveBase: 0.6, aimWeight: 0.5, diveWeight: 0.5 },
+  TR: { row: 0, col: 2, label: "Top right", missBase: 0.115, saveBase: 0.52, aimWeight: 1.5, diveWeight: 0.95 },
+  BL: { row: 1, col: 0, label: "Bottom left", missBase: 0.028, saveBase: 0.68, aimWeight: 1.45, diveWeight: 1.5 },
+  BC: { row: 1, col: 1, label: "Low and central", missBase: 0.022, saveBase: 0.88, aimWeight: 0.4, diveWeight: 0.8 },
+  BR: { row: 1, col: 2, label: "Bottom right", missBase: 0.028, saveBase: 0.68, aimWeight: 1.45, diveWeight: 1.5 },
 };
 
 /** Centre of a zone in goal-mouth space. */
@@ -54,8 +54,8 @@ export function keeperCoverage(shotZone: ZoneId, keeperZone: ZoneId): number {
   const guess = ZONES[keeperZone];
   const sideways = Math.abs(shot.col - guess.col);
   if (sideways >= 2) return 0.03;
-  if (sideways === 1) return shot.row === guess.row ? 0.24 : 0.11;
-  return shot.row === guess.row ? 1 : 0.46;
+  if (sideways === 1) return shot.row === guess.row ? 0.18 : 0.08;
+  return shot.row === guess.row ? 1 : 0.32;
 }
 
 function zoneAt(row: number, col: number): ZoneId | null {
@@ -126,7 +126,7 @@ export function resolveShot({
 
   // A shot hit at maximum power can drift into a neighbouring zone.
   let actualZone = aimZone;
-  const driftChance = Math.max(0, power - 0.82) * 0.85 * composure;
+  const driftChance = Math.max(0, power - 0.9) * 0.85 * composure;
   if (rand() < driftChance) {
     const { row, col } = ZONES[aimZone];
     const shifted =
