@@ -8,6 +8,31 @@ let master: GainNode | null = null;
 let crowdGain: GainNode | null = null;
 let enabled = true;
 
+/** Everything routes through `master`, so this scales the whole mix at once. */
+const MASTER_VOLUME = 0.85 * 0.7;
+
+/* Background music -------------------------------------------------- */
+
+const MUSIC_URL = "/audio/menu-theme.mp3";
+/** Menu/matchup volume. Kept independent of GAME_MUSIC_VOLUME so tweaking one
+ * doesn't drag the other along with it. */
+const MENU_MUSIC_VOLUME = 0.55 * 0.75;
+/** Ducked well back so it never competes with commentary or crowd swells. */
+const GAME_MUSIC_VOLUME = 0.099;
+const MUSIC_FADE_SECONDS = 0.6;
+
+/** How much the tail of one loop overlaps the head of the next. */
+const MUSIC_LOOP_CROSSFADE_SECONDS = 2.5;
+/** How far ahead of a segment boundary we queue the next node up. */
+const MUSIC_SCHEDULE_LOOKAHEAD_SECONDS = 1;
+
+let musicGain: GainNode | null = null;
+let musicBuffer: AudioBuffer | null = null;
+let musicBufferPromise: Promise<AudioBuffer | null> | null = null;
+let musicDucked = false;
+let musicStarted = false;
+let musicLoopTimer: ReturnType<typeof setTimeout> | null = null;
+
 function audio(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
@@ -15,7 +40,7 @@ function audio(): AudioContext | null {
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();
-    master.gain.value = 0.85;
+    master.gain.value = MASTER_VOLUME;
     master.connect(ctx.destination);
   }
   if (ctx.state === "suspended") void ctx.resume();
@@ -31,7 +56,7 @@ function noiseBuffer(c: AudioContext, seconds: number) {
 
 export function setAudioEnabled(on: boolean) {
   enabled = on;
-  if (master) master.gain.value = on ? 0.85 : 0;
+  if (master) master.gain.value = on ? MASTER_VOLUME : 0;
   if (on) audio();
 }
 
@@ -68,6 +93,96 @@ export function startCrowd() {
 
   src.connect(hp).connect(lp).connect(crowdGain).connect(master);
   src.start();
+}
+
+function loadMusicBuffer(c: AudioContext): Promise<AudioBuffer | null> {
+  if (musicBuffer) return Promise.resolve(musicBuffer);
+  if (!musicBufferPromise) {
+    musicBufferPromise = fetch(MUSIC_URL)
+      .then((res) => res.arrayBuffer())
+      .then((data) => c.decodeAudioData(data))
+      .then((buffer) => {
+        musicBuffer = buffer;
+        return buffer;
+      })
+      .catch((err) => {
+        console.warn("Failed to load background music", err);
+        musicBufferPromise = null;
+        return null;
+      });
+  }
+  return musicBufferPromise;
+}
+
+/**
+ * Queues one pass through the theme starting at `startAt` (an AudioContext
+ * timestamp), then schedules the next overlapping pass so its head crossfades
+ * under this one's tail — avoiding the click/pop of a hard-cut native loop.
+ * Scheduling is chained off `startAt`/`endAt` rather than `c.currentTime`, so
+ * setTimeout jitter can't drift the loop; only *when* we queue the next node
+ * is approximate, not *where* it lands on the audio timeline.
+ */
+function scheduleMusicSegment(c: AudioContext, buffer: AudioBuffer, startAt: number) {
+  if (!musicGain) return;
+
+  const fade = Math.min(MUSIC_LOOP_CROSSFADE_SECONDS, buffer.duration / 2);
+  const endAt = startAt + buffer.duration;
+
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const segmentGain = c.createGain();
+  src.connect(segmentGain).connect(musicGain);
+
+  segmentGain.gain.setValueAtTime(0, startAt);
+  segmentGain.gain.linearRampToValueAtTime(1, startAt + fade);
+  segmentGain.gain.setValueAtTime(1, endAt - fade);
+  segmentGain.gain.linearRampToValueAtTime(0, endAt);
+
+  src.start(startAt);
+  src.stop(endAt + 0.1);
+
+  const nextStart = endAt - fade;
+  const delayMs = Math.max(0, (nextStart - c.currentTime - MUSIC_SCHEDULE_LOOKAHEAD_SECONDS) * 1000);
+  musicLoopTimer = setTimeout(() => scheduleMusicSegment(c, buffer, nextStart), delayMs);
+}
+
+/** Starts the crossfaded menu theme loop, if it isn't already playing. */
+export function startMusic() {
+  const c = audio();
+  if (!c || !master || musicStarted) return;
+  musicStarted = true;
+
+  if (!musicGain) {
+    musicGain = c.createGain();
+    musicGain.gain.value = musicDucked ? GAME_MUSIC_VOLUME : MENU_MUSIC_VOLUME;
+    musicGain.connect(master);
+  }
+
+  void loadMusicBuffer(c).then((buffer) => {
+    if (!buffer || !musicGain) return;
+    scheduleMusicSegment(c, buffer, c.currentTime + 0.05);
+  });
+}
+
+/** Stops queuing further loop segments (the currently-playing pass rings out). */
+export function stopMusic() {
+  musicStarted = false;
+  if (musicLoopTimer !== null) {
+    clearTimeout(musicLoopTimer);
+    musicLoopTimer = null;
+  }
+}
+
+/** Ducks the theme down for gameplay, or restores it for menu screens. */
+export function setMusicDucked(ducked: boolean) {
+  musicDucked = ducked;
+  if (!musicGain) return;
+  const c = audio();
+  if (!c) return;
+  const target = ducked ? GAME_MUSIC_VOLUME : MENU_MUSIC_VOLUME;
+  musicGain.gain.cancelScheduledValues(c.currentTime);
+  musicGain.gain.setValueAtTime(musicGain.gain.value, c.currentTime);
+  musicGain.gain.linearRampToValueAtTime(target, c.currentTime + MUSIC_FADE_SECONDS);
 }
 
 /** Lifts the crowd noise to a roar, then settles it back down. */
@@ -187,10 +302,10 @@ export function sfxWhistle() {
   vib.stop(c.currentTime + 0.45);
 }
 
-export function sfxClick() {
+export function sfxClick(gain = 0.07) {
   const c = audio();
   if (!c) return;
-  envTone(c, "square", 620, 420, 0.06, 0.07);
+  envTone(c, "square", 620, 420, 0.06, gain);
 }
 
 export function sfxDrum() {

@@ -4,12 +4,14 @@ import {
   crowdSwell,
   isAudioEnabled,
   setAudioEnabled,
+  setMusicDucked,
   sfxKick,
   sfxMiss,
   sfxNet,
   sfxPost,
   sfxSave,
   startCrowd,
+  startMusic,
 } from "./audio/sfx";
 import { randomOpponent } from "./data/rosters";
 import { useShootout, type GameEvent } from "./game/useShootout";
@@ -41,7 +43,14 @@ export default function App() {
     setStage("matchup");
     setAudioEnabled(isAudioEnabled());
     startCrowd();
+    startMusic();
   }, []);
+
+  /* Menu theme plays at full volume on the select/matchup screens and
+   * ducks well back once a shootout is actually underway. */
+  useEffect(() => {
+    setMusicDucked(stage === "match");
+  }, [stage]);
 
   const backToSelect = useCallback(() => {
     setStage("select");
